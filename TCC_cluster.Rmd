@@ -1,0 +1,549 @@
+---
+title: "TCC"
+author: "Tiago de Almeida Silva"
+date: '2023-01-06'
+output:
+  pdf_document:
+    keep_tex: yes
+  word_document: default
+---
+
+Carregando os pacotes
+
+```{r results='hide', message=FALSE, warning=FALSE}
+
+pacotes <- c("plotly", "tidyverse", "ggrepel", "knitr", "kableExtra","reshape2", 
+             "misc3d", "plot3D", "cluster","factoextra", "ade4","flexclust",
+             "factoextra","ggpubr","openxlsx", "arrow", "tmap", "rgdal", 
+             "maptools", "leaflet", "Hmisc", "corrplot", 
+             "PerformanceAnalytics", "vtable", "fmsb", "scales", "showtext", 
+             "raster","tmap","rgdal","rayshader")
+
+if(sum(as.numeric(!pacotes %in% installed.packages())) != 0){
+  instalador <- pacotes[!pacotes %in% installed.packages()]
+  for(i in 1:length(instalador)) {
+    install.packages(instalador, dependencies = T)
+    break()}
+  sapply(pacotes, require, character = T)
+} else {
+  sapply(pacotes, require, character = T)
+}
+```
+
+Carregando dataset
+
+```{r}
+
+df_tcc <- readxl::read_xlsx("df_tcc.xlsx", col_names = T)
+```
+
+Correlação da base de Dados
+
+Matriz de Correlação de Pearson com nível de significância
+
+```{r}
+
+correl <- rcorr(as.matrix(df_tcc[ ,c(4,6:9)]))
+
+ chart.Correlation(df_tcc[ ,c(4,6:9)], histogram = T, pch = 19, method = "pearson")
+```
+
+```{r}
+ corrplot(correl$r, type = "full", order = "hclust", method = "number")
+```
+#Estatisticas Descritivas dos dados
+
+```{r}
+
+summary(df_tcc[ ,c(4,6:9)])
+
+
+```
+
+```{r}
+#st(df_tcc[ ,c(4,6:9)], title = "Estatísticas Descritivas")
+```
+
+
+Padronização dos dados Dados (Z-score)
+
+```{r}
+
+df_padronizado <- as.data.frame(scale(df_tcc[,c(4, 6:9)]))
+rownames(df_padronizado) <- df_tcc$nome
+```
+
+#Esquema de aglomeração não hierárquico K-MEANS (Machine Learning)
+
+Elaboração da clusterização não hieráquica k-means
+
+```{r}
+set.seed(123)
+
+cluster_kmeans <- kmeans(df_padronizado[ ,1:5],
+                         centers = 5)
+```
+
+Método de Elbow para identificação do número ótimo de clusters
+
+```{r}
+
+fviz_nbclust(df_padronizado[ ,1:5], kmeans, method = "wss", k.max = 5)
+```
+
+Criando variável categórica para indicação do cluster no banco de dados
+
+```{r}
+
+df_padronizado$cluster_K <- factor(cluster_kmeans$cluster)
+```
+
+# Análise de variância de um fator (ANOVA)
+
+ANOVA da variável 'precipitação'
+
+```{r}
+
+summary(anova_matematica <- aov(formula = 
+                Precipitacao_media_anual_mm ~ cluster_K,data = df_padronizado))
+```
+
+ANOVA da variável 'Geologia'
+
+```{r}
+
+summary(anova_matematica <- aov(formula = 
+                              Geologia ~ cluster_K,data = df_padronizado))
+```
+
+ANOVA da variável 'Geomorfologia'
+
+```{r}
+
+summary(anova_matematica <- aov(formula = 
+                              Geomorfologia ~ cluster_K,data = df_padronizado))
+```
+
+ANOVA da variável 'Pedologia_Vegetacao'
+
+```{r}
+
+summary(anova_matematica <- aov(formula =
+                          Pedologia_Vegetacao ~ cluster_K,data = df_padronizado))
+```
+
+ANOVA da variável 'Declividade'
+
+```{r}
+
+summary(anova_matematica <- aov(formula =
+                            Declividade ~ cluster_K,data = df_padronizado))
+```
+
+## Cluster com pesos
+
+```{r}
+
+df_padronizado$prec_p <- df_padronizado$Precipitacao_media_anual_mm * 0.2
+
+df_padronizado$geo_p <- df_padronizado$Geologia * 0.15
+
+df_padronizado$geomor_p <- df_padronizado$Geomorfologia * 0.2
+
+df_padronizado$ped_p <- df_padronizado$Pedologia_Vegetacao * 0.1
+
+df_padronizado$dec_p <- df_padronizado$Declividade * 0.35
+```
+
+#Esquema de aglomeração não hierárquico K-MEANS
+
+Elaboração da clusterização não hieráquica k-means
+
+```{r}
+set.seed(123)
+
+cluster_kmeans_p <- kmeans(df_padronizado[ ,7:11],
+                         centers = 5)
+```
+
+Estatística sobre o cluster
+
+```{r}
+
+print(cluster_kmeans_p)
+```
+
+
+Método de Elbow para identificação do número ótimo de clusters
+
+```{r}
+
+fviz_nbclust(df_padronizado[ ,7:11], kmeans, method = "wss", k.max = 10) +
+  geom_vline(xintercept = 5, linetype = 2)+
+  labs(title = "Número ideal de clusters",
+       subtitle = "Método Elbow",
+       x = "Número de clusters K",
+       y = "Total dentro da soma do quadrado")
+```
+
+Criando variável categórica para indicação do cluster no banco de dados
+
+```{r}
+
+df_padronizado$cluster_K_p <- factor(cluster_kmeans_p$cluster)
+```
+
+# Análise de variância de um fator (ANOVA)
+
+Análise de variância de um fator (ANOVA). Interpretação do output:
+
+Mean Sq do cluster_K: indica a variabilidade entre grupos
+Mean Sq dos Residuals: indica a variabilidade dentro dos grupos
+F value: estatística de teste (Sum Sq do cluster_H / Sum Sq dos Residuals)
+Pr(>F): p-valor da estatística 
+p-valor < 0.05: pelo menos um cluster apresenta média estatisticamente
+                diferente dos demais
+
+ANOVA da variável 'precipitação'
+
+```{r}
+
+summary(anova_prec <- aov(formula = 
+              Precipitacao_media_anual_mm ~ cluster_K_p,data = df_padronizado))
+
+```
+
+ANOVA da variável 'Geologia'
+
+```{r}
+
+summary(anova_geom <- aov(formula =
+                        Geologia ~ cluster_K_p,data = df_padronizado))
+```
+
+ANOVA da variável 'Geomorfologia'
+
+```{r}
+
+summary(anova_geomor <- aov(formula = 
+                          Geomorfologia ~ cluster_K_p,data = df_padronizado))
+```
+
+ANOVA da variável 'Pedologia_Vegetacao'
+
+```{r}
+
+summary(anova_ped <- aov(formula = 
+                    Pedologia_Vegetacao ~ cluster_K_p,data = df_padronizado))
+```
+
+ANOVA da variável 'Declividade'
+
+```{r}
+
+summary(anova_decl <- aov(formula = 
+                        Declividade ~ cluster_K_p,data = df_padronizado))
+```
+
+Scatter plot
+
+```{r results='hide', message=FALSE, warning=FALSE, fig.width=8,fig.height=6}
+fviz_cluster(cluster_kmeans_p, data = df_padronizado[ ,7:11],
+             palette = c("darkorange1", "tomato", "gold1", "cyan3", "steelblue3"), 
+             geom = c("point", "text"),
+             repel = T,
+             ellipse.type = "convex", 
+             ggtheme = theme_classic(),
+             main = "Clusters gerados pelo 'K-means'",
+             labelsize = 11,
+             xlab = "Dim 1",
+             ylab = "Dim 2",
+             shape = 1,
+             ellipse.alpha = 0.1, 
+             legend = "none"
+             ) + theme(axis.text=element_text(size=12),
+          axis.title=element_text(size=14,face="bold"),
+          title = element_text(size = 16))
+
+
+```
+
+Classificando as cidades com o grau de risco no dataset
+
+```{r}
+
+#Escala númerica
+
+df_padronizado$grau_risco_deslizamento[df_padronizado$cluster_K_p == 5] <- 1
+df_padronizado$grau_risco_deslizamento[df_padronizado$cluster_K_p == 4] <- 2
+df_padronizado$grau_risco_deslizamento[df_padronizado$cluster_K_p == 3] <- 3
+df_padronizado$grau_risco_deslizamento[df_padronizado$cluster_K_p == 1] <- 4
+df_padronizado$grau_risco_deslizamento[df_padronizado$cluster_K_p == 2] <- 5
+
+#Escala descritiva
+
+df_padronizado$risco[df_padronizado$grau_risco_deslizamento == 1] <- "Muito Baixo"
+df_padronizado$risco[df_padronizado$grau_risco_deslizamento == 2] <- "Baixo"
+df_padronizado$risco[df_padronizado$grau_risco_deslizamento == 3] <- "Moderado"
+df_padronizado$risco[df_padronizado$grau_risco_deslizamento == 4] <- "Alto"
+df_padronizado$risco[df_padronizado$grau_risco_deslizamento == 5] <- "Muito Alto"
+```
+
+# Graficos dos clusteres
+
+Com peso
+
+```{r results='hide', message=FALSE, warning=FALSE, fig.width=8,fig.height=6}
+
+ggplot(df_padronizado, aes(x = grau_risco_deslizamento)) +
+  geom_bar(fill = c("steelblue3", "lightblue2", "khaki", "orange2", "tomato")) +
+  labs(title = "Quantidade de Municípios por grau de risco a deslizamentos de terra no RJ",
+       x = "Grau de Risco",
+       y = "Quantidade") +
+  geom_text(stat = "count", aes(label = ..count..), vjust = -0.5, size = 5) +
+  theme_classic() 
+```
+
+# Mapa
+
+lendo o shapefile
+
+```{r results='hide', message=FALSE, warning=FALSE}
+
+shp_rio <- readOGR(dsn = "RJ_shp", layer = "Base2018abril2019_equiv_albers", 
+                       encoding = "UTF-8", use_iconv = TRUE)
+```
+
+Juntando os datasets
+
+```{r}
+
+df_padronizado$mun <- rownames(df_padronizado)
+
+shp_rio@data <- left_join(x = shp_rio@data,
+                          y = df_padronizado,
+                          by = c("MUNICN" = "mun"))
+
+```
+
+Plotando o mapa
+
+```{r results='hide', message=FALSE, warning=FALSE, fig.width=8,fig.height=8}
+
+tm_shape(shp = shp_rio) +
+  tm_polygons("risco",
+              palette = c("orange2", "lightblue2", "khaki", "tomato", "steelblue3"),
+              legend.show = F) +
+  tm_layout(main.title = "Risco de deslizamento de terra nos municípios do estado do Rio de Janeiro",
+            main.title.size = 1.2) +
+  tm_text("MUNICN", size = 0.5,
+         remove.overlap = TRUE,
+          col = "black") +
+  tm_compass(type = "8star",
+             show.labels = 2,
+             size = 2,
+             position = c("right", "top")) +
+  tm_add_legend("fill",
+	labels = c("Muito Alto",'Alto','Moderado','Baixo', "Muito Baixo"),
+	col = c("tomato", "orange2", "khaki", "lightblue2", "steelblue3"),
+	title="Risco") +
+  tm_scale_bar()
+   
+
+#labels = c("Muito Alto", "Alto", "Moderado", "Baixo", "Muito Baixo")
+
+```
+
+Mapa com relevo sombrado
+
+```{r results='hide', message=FALSE, warning=FALSE, fig.width=8,fig.height=8}
+
+relevo_rj <- raster("RelevoSombreado_SRTM/RelSomb_315_45.tif")
+
+tm_shape(shp = relevo_rj) + 
+  tm_raster(style = "quantile", n = 5, 
+            palette = c("azure4","gray", "snow"),
+                                legend.show = F) +
+  tm_shape(shp = shp_rio) + 
+  tm_polygons("risco", 
+              alpha = 0.2,
+              #title = "Risco de deslizamento de terra",
+              #style = "pretty",
+              palette = c("orange2", "lightblue2", "khaki", "tomato", "steelblue3"),
+              legend.show = F) +
+  tm_borders() + 
+  tm_layout(main.title = "Risco de deslizamento de terra sobre o relevo sombreado do RJ",
+            title.size = 0.5) +
+  tm_compass(type = "8star",
+             show.labels = 2,
+             size = 2,
+             position = c("right", "top")) +
+  tm_add_legend("fill",
+	labels = c("Muito Alto",'Alto','Moderado','Baixo', "Muito Baixo"),
+	col = alpha(c("tomato", "orange2", "khaki", "lightblue2", "steelblue3"), 0.25),
+	title="Risco") +
+  tm_scale_bar()
+```
+
+
+Quantidade de municípios em cada grau de risco por região do estado
+
+```{r results='hide', message=FALSE, warning=FALSE, fig.width=8,fig.height=6}
+
+# arrumando o nome das regiões
+
+p <- ggplot(shp_rio@data, aes(y = grau_risco_deslizamento, fill = REGGOV)) +
+  geom_bar() +
+  labs(title = "Quantidade de municípios por região do estado de acordo com o grau de risco",
+       y = "Grau de risco de deslizamento de terra",
+       x = "Quantidade") +
+  theme_classic()
+
+p + guides(fill=guide_legend(title="Região"))
+
+```
+
+Gráfico de radar com regiões do estado
+
+```{r results='hide', message=FALSE, warning=FALSE, fig.width=10,fig.height=8}
+set.seed(99)
+
+
+#criando o dataset para o grafico
+
+df_reg <- left_join(x = df_tcc,
+                    y = shp_rio@data,
+                    by =c("nome" = "MUNICN"))
+
+df_reg <- df_reg %>% 
+  group_by(REGGOV) %>% 
+  summarise(Pluviosidade = round(mean(Precipitacao_media_anual_mm.x)),
+            Geologia = round(mean(Geologia.x)),
+            Geomorfologia = round(mean(Geomorfologia.x)),
+            Pedologia_Vegetação = round(mean(Pedologia_Vegetacao.x)),
+            Declividade = round(mean(Declividade.x)))
+
+df_reg[9, 1] <- "Max."
+df_reg[9, 2] <- 2000
+df_reg[10, 1] <- "Min."
+df_reg[10, 2] <- 1000
+
+df_reg[9, 3:6] <- 8
+df_reg[10, 3:6] <- 0
+
+df_reg2 <-  df_reg[c(9,10,1:8), ]
+
+rownames(df_reg2) <- df_reg2$REGGOV
+
+areas <- c(rgb(0, 0.02, 0, 0.05),
+           rgb(1, 0.5 , 0, 0.5),
+           rgb(0.6, 1, 0.3, 0.5),
+           rgb(0, 0.02, 0, 0.05),
+           rgb(0, 0.02, 0, 0.05),
+           rgb(0, 0.02, 0, 0.05),
+           rgb(0, 0.02, 0, 0.05),
+           rgb(0, 0.02, 0, 0.05))
+
+
+radarchart(df_reg2[ ,2:6], 
+           cglty = 1,       # Tipo de línea del grid
+           cglcol = "black", # Color del grid
+           pcol = areas,      # Color para cada línea
+           plwd = 4,        # Ancho para cada línea
+           plty = 1,
+           pfcol = areas,
+           #title = "Região com maior e menor risco de deslizamento 
+                   #de terra explicitada por cada variável"
+           )
+
+
+legend("topright",
+       legend = df_reg2$REGGOV[3:10],
+       bty = "n", pch = 20,
+       text.col = "black", pt.cex = 2, col = areas, title = "Região")
+
+```
+
+Dataset 2
+
+```{r}
+
+df2 <- left_join(df_padronizado,
+                 df_tcc,
+                 by =c("mun"="nome"))
+```
+
+```{r}
+group_by(df2, grau_risco_deslizamento) %>% 
+  summarise(
+    mean = mean(Precipitacao_media_anual_mm.y, na.rm = TRUE),
+    sd = sd(Precipitacao_media_anual_mm.y, na.rm = TRUE),
+    min = min(Precipitacao_media_anual_mm.y, na.rm = TRUE),
+    max = max(Precipitacao_media_anual_mm.y, na.rm = TRUE))
+```
+
+```{r}
+group_by(df2, grau_risco_deslizamento) %>% 
+  summarise(
+    mean = mean(Geologia.y, na.rm = TRUE),
+    sd = sd(Geologia.y, na.rm = TRUE),
+    min = min(Geologia.y, na.rm = TRUE),
+    max = max(Geologia.y, na.rm = TRUE))
+```
+
+```{r}
+group_by(df2, grau_risco_deslizamento) %>% 
+  summarise(
+    mean = mean(Geomorfologia.y, na.rm = TRUE),
+    sd = sd(Geomorfologia.y, na.rm = TRUE),
+    min = min(Geomorfologia.y, na.rm = TRUE),
+    max = max(Geomorfologia.y, na.rm = TRUE))
+```
+
+```{r}
+group_by(df2, grau_risco_deslizamento) %>% 
+  summarise(
+    mean = mean(Pedologia_Vegetacao.y, na.rm = TRUE),
+    sd = sd(Pedologia_Vegetacao.y, na.rm = TRUE),
+    min = min(Pedologia_Vegetacao.y, na.rm = TRUE),
+    max = max(Pedologia_Vegetacao.y, na.rm = TRUE))
+```
+
+```{r}
+group_by(df2, grau_risco_deslizamento) %>% 
+  summarise(
+    mean = mean(Declividade.y, na.rm = TRUE),
+    sd = sd(Declividade.y, na.rm = TRUE),
+    min = min(Declividade.y, na.rm = TRUE),
+    max = max(Declividade.y, na.rm = TRUE))
+```
+
+Radar 2
+
+```{r results='hide', message=FALSE, warning=FALSE, fig.width=8,fig.height=8}
+
+radar2 <- readxl::read_xlsx("radar2.xlsx", col_names = T)
+
+rownames(radar2) <- radar2$Cluster
+
+class(radar2$Declividade) <- "numeric"
+
+areas2 <- c("steelblue3", "lightblue2", "khaki", "orange2", "tomato")
+
+
+radarchart(radar2[ ,2:6], 
+           cglty = 1,       # Tipo de línea del grid
+           cglcol = "gray", # Color del grid
+           pcol = areas2,      # Color para cada línea
+           plwd = 3,        # Ancho para cada línea
+           plty = 1)
+
+
+legend("topright",
+       legend = radar2$Cluster[3:7],
+       bty = "n", pch = 20,
+       text.col = "black", pt.cex = 2, col = areas2,
+       title = "Cluster")
+
+```
+
